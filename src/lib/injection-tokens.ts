@@ -1,0 +1,3 @@
+export const REDIS_CLIENT = 'REDIS_CLIENT';
+export const PRICE_CACHE = 'PRICE_CACHE';
+export const PRICE_STRATEGIES = 'PRICE_STRATEGIES';

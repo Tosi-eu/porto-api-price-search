@@ -1,12 +1,15 @@
+import { Inject, Injectable } from '@nestjs/common';
 import { logger } from '../logger';
-import type { PriceCache } from '../lib/cache';
-import { getCacheKey } from '../lib/cache';
 import { OutlierFilter, PriceAggregator } from '../lib/aggregator';
-import type { PriceSearchResult, PriceSourceStrategy } from '../types';
+import type { PriceSourceStrategy, PriceSearchResult } from '../types';
+import { PriceSearchRepository } from '../repositories/price-search.repository';
+import { PRICE_STRATEGIES } from '../lib/injection-tokens';
 
+@Injectable()
 export class PriceSearchService {
   constructor(
-    private readonly cache: PriceCache,
+    private readonly repository: PriceSearchRepository,
+    @Inject(PRICE_STRATEGIES)
     private readonly strategies: PriceSourceStrategy[],
     private readonly aggregator: PriceAggregator,
     private readonly outlierFilter: OutlierFilter,
@@ -18,9 +21,8 @@ export class PriceSearchService {
     dosage?: string,
     measurementUnit?: string,
   ): Promise<PriceSearchResult | null> {
-    const cacheKey = getCacheKey(itemName, dosage, itemType);
+    const cached = await this.repository.getByItem(itemName, itemType, dosage);
 
-    const cached = await this.cache.get<PriceSearchResult>(cacheKey);
     if (cached && cached.averagePrice !== null) {
       logger.info('Busca de preço (cache hit)', {
         operation: 'price_search',
@@ -113,7 +115,13 @@ export class PriceSearchService {
       lastUpdated: new Date(),
     };
 
-    await this.cache.set(cacheKey, response, 60 * 60 * 24);
+    await this.repository.save(
+      itemName,
+      itemType,
+      dosage,
+      response,
+      60 * 60 * 24,
+    );
 
     logger.info('Busca de preço concluída', {
       operation: 'price_search',
@@ -131,7 +139,6 @@ export class PriceSearchService {
     dosage: string | undefined,
     itemType: 'medicine' | 'input' = 'medicine',
   ): Promise<void> {
-    const cacheKey = getCacheKey(itemName, dosage, itemType);
-    await this.cache.invalidate(cacheKey);
+    await this.repository.invalidate(itemName, dosage, itemType);
   }
 }
