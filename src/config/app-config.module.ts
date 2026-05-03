@@ -4,7 +4,7 @@ import { loadConfig } from './app-config';
 
 @Global()
 @Module({
-  providers: [{ provide: APP_CONFIG, useFactory: () => loadConfig() }],
+  providers: [{ provide: APP_CONFIG, useFactory: async () => loadConfig() }],
   exports: [APP_CONFIG],
 })
 export class AppConfigModule {}

@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { loadPricingApiKeyFromDb } from './load-pricing-api-key-from-db';
+import { resolveDatabaseUrl } from './database-url';
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3010),
   NODE_ENV: z.string().optional(),
-  PRICING_API_KEY: z.string().min(8, 'PRICING_API_KEY deve ter pelo menos 8 caracteres'),
   REDIS_HOST: z.string().optional(),
   REDIS_PORT: z.coerce.number().default(6379),
   SEARCH_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
@@ -12,13 +13,33 @@ const envSchema = z.object({
   GLOBAL_RATE_LIMIT_MAX: z.coerce.number().default(300),
 });
 
-export type AppConfig = z.infer<typeof envSchema>;
+export type AppConfig = z.infer<typeof envSchema> & {
+  
+  PRICING_API_KEY: string;
+};
 
-export function loadConfig(): AppConfig {
+export async function loadConfig(): Promise<AppConfig> {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     const msg = parsed.error.flatten().fieldErrors;
     throw new Error(`Config inválida: ${JSON.stringify(msg)}`);
   }
-  return parsed.data;
+
+  if (!resolveDatabaseUrl()) {
+    throw new Error(
+      'Ligação à base indisponível: defina STOKIO_DATABASE_URL ou DATABASE_URL (ou DB_HOST, DB_USER, DB_NAME). O price-search lê a chave em system_config.',
+    );
+  }
+
+  const pricingKey = await loadPricingApiKeyFromDb();
+  if (!pricingKey || pricingKey.length < 8) {
+    throw new Error(
+      'Chave da API de preços ausente ou curta: configure em Sistema (backend) `runtime.pricing.api_key` / mesmo valor que o cliente envia em X-Pricing-API-Key.',
+    );
+  }
+
+  return {
+    ...parsed.data,
+    PRICING_API_KEY: pricingKey,
+  };
 }
