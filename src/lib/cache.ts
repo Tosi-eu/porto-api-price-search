@@ -17,7 +17,7 @@ export function createRedisCache(redis: Redis): PriceCache {
         return null;
       }
     },
-    async set(key: string, value: unknown, ttlSeconds = 86400): Promise<void> {
+    async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
       await redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
     },
     async invalidate(key: string): Promise<void> {
@@ -34,15 +34,4 @@ export function createNoopCache(): PriceCache {
     async set(_key: string, _value: unknown, _ttl?: number): Promise<void> {},
     async invalidate(_key: string): Promise<void> {},
   };
-}
-
-export function getCacheKey(
-  itemName: string,
-  dosage: string | undefined,
-  itemType: 'medicine' | 'input',
-): string {
-  const key = `${itemType}:price:${itemName.toLowerCase().trim()}${
-    dosage ? `:${dosage}` : ''
-  }`;
-  return `pricing:${key.replace(/\s+/g, '_')}`;
 }

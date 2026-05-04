@@ -11,10 +11,14 @@ const envSchema = z.object({
   SEARCH_RATE_LIMIT_MAX: z.coerce.number().default(40),
   GLOBAL_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(15 * 60_000),
   GLOBAL_RATE_LIMIT_MAX: z.coerce.number().default(300),
+  // Cache de preços (L1 Redis + L2 Postgres com stale-while-revalidate).
+  PRICE_HIT_TTL_DAYS: z.coerce.number().default(7),
+  PRICE_MISS_TTL_HOURS: z.coerce.number().default(6),
+  PRICE_L1_TTL_SECONDS: z.coerce.number().default(60 * 60),
+  PRICE_BG_REFRESH_QUEUE_MAX: z.coerce.number().default(64),
 });
 
 export type AppConfig = z.infer<typeof envSchema> & {
-  
   PRICING_API_KEY: string;
 };
 

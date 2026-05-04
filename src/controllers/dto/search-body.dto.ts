@@ -13,6 +13,7 @@ export const invalidateCacheBodySchema = searchBodySchema.pick({
   itemName: true,
   itemType: true,
   dosage: true,
+  measurementUnit: true,
 });
 
 export type InvalidateCacheBodyDto = z.infer<typeof invalidateCacheBodySchema>;

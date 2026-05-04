@@ -1,0 +1,50 @@
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["pricing"]
+}
+
+enum PriceItemType {
+  medicine
+  input
+
+  @@schema("pricing")
+}
+
+/// Tabela normalizada de preços (L2). Sempre upsert por chave canônica.
+/// `averagePrice = NULL` representa um cache negativo (todas as fontes falharam).
+/// Os campos canônicos `dosageCanonical` e `unitCanonical` usam string vazia
+/// (em vez de NULL) para representar "sem valor", permitindo que o índice
+/// `@@unique` funcione naturalmente — Postgres trataria NULL como distinto.
+/// Os campos `*Original` continuam nullable para preservar a entrada do usuário.
+model CachedPrice {
+  id              Int           @id @default(autoincrement())
+  itemType        PriceItemType
+  nameCanonical   String        @db.VarChar(500)
+  dosageCanonical String        @default("") @db.VarChar(200)
+  unitCanonical   String        @default("") @db.VarChar(50)
+  nameOriginal    String        @db.VarChar(500)
+  dosageOriginal  String?       @db.VarChar(200)
+  unitOriginal    String?       @db.VarChar(50)
+  averagePrice    Decimal?      @db.Decimal(10, 2)
+  sources         String?       @db.VarChar(255)
+  pricesPerSource Json?
+  lastAttemptedAt DateTime      @default(now())
+  lastSucceededAt DateTime?
+  attemptsCount   Int           @default(0)
+  lastError       String?       @db.VarChar(500)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([itemType, nameCanonical, dosageCanonical, unitCanonical], map: "uniq_cached_price_canonical")
+  @@index([lastSucceededAt], map: "idx_cached_price_last_succeeded")
+  @@index([lastAttemptedAt], map: "idx_cached_price_last_attempted")
+  @@map("cached_price")
+  @@schema("pricing")
+}

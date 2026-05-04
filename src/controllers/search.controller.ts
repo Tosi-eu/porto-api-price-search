@@ -69,6 +69,7 @@ export class SearchController {
         body.itemName,
         body.dosage,
         body.itemType,
+        body.measurementUnit,
       );
     } catch (e) {
       logger.error('Erro ao invalidar cache', {
