@@ -5,7 +5,9 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  UseInterceptors,
 } from '@nestjs/common';
+import { PricingAuditInterceptor } from '../interceptors/pricing-audit.interceptor';
 import { PriceSearchService } from '../services/price-search.service';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
@@ -17,6 +19,7 @@ import {
 import { logger } from '../logger';
 
 @Controller('v1')
+@UseInterceptors(PricingAuditInterceptor)
 export class SearchController {
   constructor(private readonly priceSearchService: PriceSearchService) {}
 
@@ -69,6 +72,7 @@ export class SearchController {
         body.itemName,
         body.dosage,
         body.itemType,
+        body.measurementUnit,
       );
     } catch (e) {
       logger.error('Erro ao invalidar cache', {

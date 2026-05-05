@@ -4,9 +4,12 @@ import {
   RequestMethod,
 } from '@nestjs/common';
 import Redis from 'ioredis';
+import { PrismaClient } from '@prisma/client';
 import { SearchController } from '../controllers/search.controller';
+import { PricingAuditInterceptor } from '../interceptors/pricing-audit.interceptor';
 import { PriceSearchService } from '../services/price-search.service';
 import { PriceSearchRepository } from '../repositories/price-search.repository';
+import { PriceDbRepository } from '../repositories/price-db.repository';
 import { PriceAggregator, OutlierFilter } from '../lib/aggregator';
 import { createDefaultStrategies } from '../strategies';
 import { createRedisCache, createNoopCache } from '../lib/cache';
@@ -18,16 +21,21 @@ import { SearchRateLimitMiddleware } from '../middleware/search-rate-limit.middl
 import {
   PRICE_CACHE,
   PRICE_STRATEGIES,
+  PRISMA_CLIENT,
   REDIS_CLIENT,
 } from '../lib/injection-tokens';
 import { logger } from '../logger';
 import { reportPriceSearchError } from '../clients/error-ingest.client';
 import { RedisShutdownHook } from '../lib/redis-shutdown.hook';
+import { PrismaShutdownHook } from '../lib/prisma-shutdown.hook';
+import { resolvePricingCacheDatabaseUrl } from '../config/database-url';
 
 @Module({
   controllers: [SearchController],
   providers: [
+    PricingAuditInterceptor,
     PriceSearchRepository,
+    PriceDbRepository,
     PriceSearchService,
     PriceAggregator,
     OutlierFilter,
@@ -35,11 +43,12 @@ import { RedisShutdownHook } from '../lib/redis-shutdown.hook';
     PricingApiKeyMiddleware,
     SearchRateLimitMiddleware,
     RedisShutdownHook,
+    PrismaShutdownHook,
     {
       provide: REDIS_CLIENT,
       useFactory: (config: AppConfig): Redis | null => {
         if (!config.REDIS_HOST) {
-          logger.warn('REDIS_HOST não definido — cache de preços desativado');
+          logger.warn('REDIS_HOST não definido — cache L1 desativado');
           return null;
         }
         const client = new Redis({
@@ -64,6 +73,23 @@ import { RedisShutdownHook } from '../lib/redis-shutdown.hook';
       useFactory: (redis: Redis | null) =>
         redis ? createRedisCache(redis) : createNoopCache(),
       inject: [REDIS_CLIENT],
+    },
+    {
+      provide: PRISMA_CLIENT,
+      useFactory: (): PrismaClient | null => {
+        const url = resolvePricingCacheDatabaseUrl();
+        if (!url) {
+          logger.warn(
+            'DATABASE_URL / PRICING_CACHE_DATABASE_URL ou PRICING_DB_* — cache L2 desativado',
+          );
+          return null;
+        }
+        const prisma = new PrismaClient({
+          datasources: { db: { url } },
+          log: ['warn', 'error'],
+        });
+        return prisma;
+      },
     },
     {
       provide: PRICE_STRATEGIES,
